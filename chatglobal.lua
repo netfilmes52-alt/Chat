@@ -1,9 +1,12 @@
 -- ╔══════════════════════════════════════════════════════╗
--- ║    GLOBAL CHAT HUB v4  •  Mobile First  💜           ║
+-- ║    GLOBAL CHAT HUB v4.1  •  Mobile First  💜         ║
 -- ║    • Menu lateral esquerdo                           ║
 -- ║    • Minimizar → bolinha flutuante arrastrável       ║
 -- ║    • Sistema de faixa etária com avisos              ║
+-- ║    • Suporte PT / EN / ES                            ║
+-- ║    • FIX: convite de sala privada corrigido          ║
 -- ╚══════════════════════════════════════════════════════╝
+
 local FIREBASE_URL = "https://scriptroblox-adede-default-rtdb.firebaseio.com"
 local POLL_INT     = 3
 local MAX_MSGS     = 50
@@ -18,18 +21,214 @@ local ME     = Players.LocalPlayer
 local MYNAME = ME.Name
 local MYUID  = ME.UserId
 
--- Faixa etária: "child"(<13) | "teen"(13-17) | "adult"(18+)
 local MY_AGE_GROUP = ""
-local MY_AGE_NUM = 0  -- idade real em número
+local MY_AGE_NUM   = 0
 
-local function isMinorGroup(g) return g=="child" or g=="teen" end
-local function isAdultGroup(g) return g=="adult" end
+-- ══════════════════════════════════════════════════════════
+-- SISTEMA DE IDIOMAS
+-- ══════════════════════════════════════════════════════════
+local CURRENT_LANG = "pt"
+
+local TRANSLATIONS = {
+    pt = {
+        -- Abas
+        tab_local   = "Local",
+        tab_global  = "Global",
+        tab_brasil  = "Brasil",
+        tab_usa     = "USA",
+        tab_private = "Privado",
+        tab_debug   = "Debug",
+        -- Chat
+        placeholder     = "Escreva aqui...",
+        placeholder_prv = "Mensagem privada...",
+        placeholder_code= "Código da sala...",
+        send_btn        = ">>>",
+        -- Sala privada
+        create_room   = "✨ Criar Sala Privada",
+        creating_room = "⏳ Criando...",
+        join_room     = "Entrar",
+        room_created  = "· você criou",
+        room_joined   = "· você entrou",
+        room_waiting  = "📭 Sala vazia. Manda o código!",
+        room_active   = "✅ Sala ativa!",
+        room_empty    = "📭 Vazio. Seja o primeiro!",
+        room_connected= "✅ Conectado!",
+        room_not_found= "❌ Sala não encontrada!",
+        room_expired  = "❌ Sala não encontrada ou expirou.",
+        invalid_code  = "⚠️ Código inválido!",
+        room_private_title = "🔒 Sala Privada Global",
+        room_private_sub   = "Crie ou entre com código",
+        -- Convite
+        invite_title  = " te convidou!",
+        invite_room   = "Sala privada: ",
+        invite_accept = "✔ Entrar",
+        invite_decline= "✕ Recusar",
+        -- Botões de mensagem
+        report_btn    = "🚨 Reportar",
+        reported_btn  = "✔ Reportado",
+        invite_prv_btn= "+ Sala Priv",
+        invite_sent   = "✔ Convidado!",
+        invite_sending= "Enviando...",
+        create_first  = "Crie sala 1o!",
+        -- Avisos de idade
+        warn_adult    = "⚠️ Este usuário é adulto (%d anos). Tome cuidado!",
+        warn_minor    = "⚠️ Este usuário é menor de idade (%d anos).",
+        -- Age gate
+        age_question  = "Qual é a sua idade?",
+        age_sub       = "ℹ️  Isso não afetará seu chat.\nVocê poderá conversar com quem quiser.",
+        age_placeholder= "Digite sua idade (ex: 16)",
+        age_ok        = "OK",
+        age_error     = "Digite um numero válido (ex: 16)",
+        -- Sistema
+        sys_local     = "✅ Chat local conectado!",
+        sys_connecting= "🔗 Canal [%s] conectando...",
+        sys_executor  = "Executor: ",
+        sys_debug_sub = "Pressione o botão para testar.",
+        sys_diag_start= "🔍 Iniciando diagnóstico...",
+        sys_diag_ok   = "✅ Firebase OK!",
+        sys_diag_nohttp="❌ Sem HTTP! Ative rede no executor.",
+        sys_diag_test = "📡 Testando Firebase...",
+        sys_diag_nofire="❌ Sem resposta do Firebase!",
+        sys_diag_block= "❌ Firebase bloqueado! Vá em Regras → read/write: true",
+        btn_test_conn = "🔍 Testar Conexão",
+        btn_testing   = "Testando...",
+        sys_spam      = "⛔ Spam detectado! Aguarde 8s.",
+        sys_wait      = "⏳ Espere %ds",
+        left_msg      = "👋 %s saiu",
+    },
+    en = {
+        tab_local   = "Local",
+        tab_global  = "Global",
+        tab_brasil  = "Brasil",
+        tab_usa     = "USA",
+        tab_private = "Private",
+        tab_debug   = "Debug",
+        placeholder     = "Type here...",
+        placeholder_prv = "Private message...",
+        placeholder_code= "Room code...",
+        send_btn        = ">>>",
+        create_room   = "✨ Create Private Room",
+        creating_room = "⏳ Creating...",
+        join_room     = "Join",
+        room_created  = "· you created",
+        room_joined   = "· you joined",
+        room_waiting  = "📭 Empty room. Share the code!",
+        room_active   = "✅ Room active!",
+        room_empty    = "📭 Empty. Be the first!",
+        room_connected= "✅ Connected!",
+        room_not_found= "❌ Room not found!",
+        room_expired  = "❌ Room not found or expired.",
+        invalid_code  = "⚠️ Invalid code!",
+        room_private_title = "🔒 Global Private Room",
+        room_private_sub   = "Create or join with a code",
+        invite_title  = " invited you!",
+        invite_room   = "Private room: ",
+        invite_accept = "✔ Join",
+        invite_decline= "✕ Decline",
+        report_btn    = "🚨 Report",
+        reported_btn  = "✔ Reported",
+        invite_prv_btn= "+ Priv Room",
+        invite_sent   = "✔ Invited!",
+        invite_sending= "Sending...",
+        create_first  = "Create room first!",
+        warn_adult    = "⚠️ This user is an adult (%d yrs). Be careful!",
+        warn_minor    = "⚠️ This user is a minor (%d yrs).",
+        age_question  = "How old are you?",
+        age_sub       = "ℹ️  This won't affect your chat.\nYou can talk to anyone.",
+        age_placeholder= "Enter your age (e.g. 16)",
+        age_ok        = "OK",
+        age_error     = "Enter a valid number (e.g. 16)",
+        sys_local     = "✅ Local chat connected!",
+        sys_connecting= "🔗 Channel [%s] connecting...",
+        sys_executor  = "Executor: ",
+        sys_debug_sub = "Press the button to test.",
+        sys_diag_start= "🔍 Starting diagnostics...",
+        sys_diag_ok   = "✅ Firebase OK!",
+        sys_diag_nohttp="❌ No HTTP! Enable network in executor.",
+        sys_diag_test = "📡 Testing Firebase...",
+        sys_diag_nofire="❌ No response from Firebase!",
+        sys_diag_block= "❌ Firebase blocked! Go to Rules → read/write: true",
+        btn_test_conn = "🔍 Test Connection",
+        btn_testing   = "Testing...",
+        sys_spam      = "⛔ Spam detected! Wait 8s.",
+        sys_wait      = "⏳ Wait %ds",
+        left_msg      = "👋 %s left",
+    },
+    es = {
+        tab_local   = "Local",
+        tab_global  = "Global",
+        tab_brasil  = "Brasil",
+        tab_usa     = "USA",
+        tab_private = "Privado",
+        tab_debug   = "Debug",
+        placeholder     = "Escribe aquí...",
+        placeholder_prv = "Mensaje privado...",
+        placeholder_code= "Código de sala...",
+        send_btn        = ">>>",
+        create_room   = "✨ Crear Sala Privada",
+        creating_room = "⏳ Creando...",
+        join_room     = "Unirse",
+        room_created  = "· tú creaste",
+        room_joined   = "· te uniste",
+        room_waiting  = "📭 Sala vacía. ¡Comparte el código!",
+        room_active   = "✅ ¡Sala activa!",
+        room_empty    = "📭 Vacío. ¡Sé el primero!",
+        room_connected= "✅ ¡Conectado!",
+        room_not_found= "❌ ¡Sala no encontrada!",
+        room_expired  = "❌ Sala no encontrada o expirada.",
+        invalid_code  = "⚠️ ¡Código inválido!",
+        room_private_title = "🔒 Sala Privada Global",
+        room_private_sub   = "Crea o únete con un código",
+        invite_title  = " te invitó!",
+        invite_room   = "Sala privada: ",
+        invite_accept = "✔ Unirse",
+        invite_decline= "✕ Rechazar",
+        report_btn    = "🚨 Reportar",
+        reported_btn  = "✔ Reportado",
+        invite_prv_btn= "+ Sala Priv",
+        invite_sent   = "✔ ¡Invitado!",
+        invite_sending= "Enviando...",
+        create_first  = "¡Crea sala primero!",
+        warn_adult    = "⚠️ Este usuario es adulto (%d años). ¡Ten cuidado!",
+        warn_minor    = "⚠️ Este usuario es menor de edad (%d años).",
+        age_question  = "¿Cuántos años tienes?",
+        age_sub       = "ℹ️  Esto no afectará tu chat.\nPuedes hablar con quien quieras.",
+        age_placeholder= "Ingresa tu edad (ej: 16)",
+        age_ok        = "OK",
+        age_error     = "Ingresa un número válido (ej: 16)",
+        sys_local     = "✅ ¡Chat local conectado!",
+        sys_connecting= "🔗 Canal [%s] conectando...",
+        sys_executor  = "Ejecutor: ",
+        sys_debug_sub = "Presiona el botón para probar.",
+        sys_diag_start= "🔍 Iniciando diagnóstico...",
+        sys_diag_ok   = "✅ Firebase OK!",
+        sys_diag_nohttp="❌ Sin HTTP. Activa la red en el ejecutor.",
+        sys_diag_test = "📡 Probando Firebase...",
+        sys_diag_nofire="❌ Sin respuesta de Firebase!",
+        sys_diag_block= "❌ Firebase bloqueado. Reglas → read/write: true",
+        btn_test_conn = "🔍 Probar Conexión",
+        btn_testing   = "Probando...",
+        sys_spam      = "⛔ ¡Spam detectado! Espera 8s.",
+        sys_wait      = "⏳ Espera %ds",
+        left_msg      = "👋 %s salió",
+    }
+}
+
+-- Tradução com fallback
+local function T(key, ...)
+    local tbl = TRANSLATIONS[CURRENT_LANG] or TRANSLATIONS["pt"]
+    local str = tbl[key] or TRANSLATIONS["pt"][key] or key
+    if select("#",...) > 0 then
+        local ok, result = pcall(string.format, str, ...)
+        return ok and result or str
+    end
+    return str
+end
 
 -- ── HTTP Detection ────────────────────────────────────────
 local httpFn, httpName = nil, "none"
 local useHttpSvc = false
 
--- Delta usa 'request' como global -- testa cada candidata com pcall
 do
     local TEST = FIREBASE_URL.."/ping.json"
     local function probe(fn, nm)
@@ -42,7 +241,6 @@ do
         end
         return false
     end
-    -- Testa em ordem (request = padrão do Delta)
     local fns = {
         function() return request end,
         function() return syn and syn.request end,
@@ -55,7 +253,6 @@ do
         local ok,fn = pcall(getter)
         if ok and fn and probe(fn, names[i]) then break end
     end
-    -- Fallback HttpService
     if not httpFn then
         if pcall(function() Http:GetAsync(TEST) end) then
             useHttpSvc=true; httpName="HttpService"
@@ -105,7 +302,6 @@ local function mkCode()
 end
 local function sfen(s) return (tostring(s):gsub("[^%w%-_]","_")) end
 
--- Avatar com fallback silencioso
 local avCache = {}
 local function fetchAvatar(uid, lbl)
     if not uid or uid == 0 or not lbl then return end
@@ -113,7 +309,6 @@ local function fetchAvatar(uid, lbl)
         pcall(function() lbl.Image = avCache[uid] end); return
     end
     task.spawn(function()
-        -- tenta GetUserThumbnailAsync; silencia CrossExperience error
         local ok, url = pcall(function()
             return Players:GetUserThumbnailAsync(uid,
                 Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
@@ -160,11 +355,15 @@ local C_SEND    = Color3.fromRGB(82,50,195)
 local C_ACCENT  = Color3.fromRGB(72,42,180)
 local C_INPUT   = Color3.fromRGB(13,10,32)
 
--- ── DECLARAR Main cedo (fix do nil no closure da Bubble) ──
-local Main  -- será atribuído mais abaixo
+-- ══════════════════════════════════════════════════════════
+-- FORWARD DECLARATIONS  ← FIX CRÍTICO
+-- startPrivateRoom precisa existir antes de showInvitePopup
+-- ══════════════════════════════════════════════════════════
+local startPrivateRoom  -- declarada aqui, definida abaixo
+local Main              -- idem
 
--- Estado minimizar (declarado antes do closure)
 local minimized = false
+
 -- ══════════════════════════════════════════════════════════
 -- BUBBLE (estado minimizado)
 -- ══════════════════════════════════════════════════════════
@@ -185,7 +384,6 @@ bBadge.TextSize=9; bBadge.Font=Enum.Font.GothamBold; bBadge.Text=""
 bBadge.BorderSizePixel=0; bBadge.Visible=false
 Instance.new("UICorner",bBadge).CornerRadius=UDim.new(1,0)
 
--- Pulso da bolinha
 task.spawn(function()
     while SG.Parent do
         if Bubble.Visible then
@@ -197,7 +395,6 @@ task.spawn(function()
     end
 end)
 
--- Drag da bolinha
 do
     local bd,bs,bp,bmoved=false,nil,nil,false
     Bubble.InputBegan:Connect(function(i)
@@ -218,7 +415,7 @@ do
     Bubble.MouseButton1Click:Connect(function()
         if bmoved then return end
         if not Main then return end
-        minimized = false  -- reset estado
+        minimized = false
         Bubble.Visible=false; Main.Visible=true
         Main.Size=UDim2.new(0,0,0,0)
         Tween:Create(Main,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Size=UDim2.new(0,WIN_W,0,WIN_H)}):Play()
@@ -227,7 +424,7 @@ do
 end
 
 -- ══════════════════════════════════════════════════════════
--- JANELA PRINCIPAL  (agora Main recebe o valor)
+-- JANELA PRINCIPAL
 -- ══════════════════════════════════════════════════════════
 Main=Instance.new("Frame",SG)
 Main.Name="MainWin"; Main.AnchorPoint=Vector2.new(0.5,0.5)
@@ -259,13 +456,13 @@ fetchAvatar(MYUID,avI)
 
 local ax=avSzT+16
 local nLbl=Instance.new("TextLabel",TBar)
-nLbl.Text=MYNAME; nLbl.Position=UDim2.new(0,ax,0,5); nLbl.Size=UDim2.new(1,-(ax+BTN_SZ*2+22),0,TITLE_H/2-3)
+nLbl.Text=MYNAME; nLbl.Position=UDim2.new(0,ax,0,5); nLbl.Size=UDim2.new(1,-(ax+BTN_SZ*3+34),0,TITLE_H/2-3)
 nLbl.BackgroundTransparency=1; nLbl.TextColor3=Color3.fromRGB(228,218,255)
 nLbl.TextSize=mob and 14 or 13; nLbl.Font=Enum.Font.GothamBold
 nLbl.TextXAlignment=Enum.TextXAlignment.Left; nLbl.TextTruncate=Enum.TextTruncate.AtEnd
 
 local gLbl=Instance.new("TextLabel",TBar)
-gLbl.Text="🎮 "..game.Name; gLbl.Position=UDim2.new(0,ax,0,TITLE_H/2+2); gLbl.Size=UDim2.new(1,-(ax+BTN_SZ*2+22),0,TITLE_H/2-8)
+gLbl.Text="🎮 "..game.Name; gLbl.Position=UDim2.new(0,ax,0,TITLE_H/2+2); gLbl.Size=UDim2.new(1,-(ax+BTN_SZ*3+34),0,TITLE_H/2-8)
 gLbl.BackgroundTransparency=1; gLbl.TextColor3=Color3.fromRGB(95,80,158)
 gLbl.TextSize=mob and 10 or 9; gLbl.Font=Enum.Font.Gotham
 gLbl.TextXAlignment=Enum.TextXAlignment.Left; gLbl.TextTruncate=Enum.TextTruncate.AtEnd
@@ -280,8 +477,30 @@ local function mkTBtn(txt,bg,x)
     b.MouseLeave:Connect(function() Tween:Create(b,TweenInfo.new(0.12),{BackgroundTransparency=0}):Play() end)
     return b
 end
+
+-- ── BOTÃO DE IDIOMA (cicla PT → EN → ES → PT) ─────────────
+local LANG_CYCLE = {"pt","en","es"}
+local LANG_LABELS = {pt="PT 🇧🇷", en="EN 🇺🇸", es="ES 🇪🇸"}
+local langBtn = mkTBtn("PT", Color3.fromRGB(30,90,160), -(BTN_SZ*3+20))
+
 local MinBtn   = mkTBtn("−",Color3.fromRGB(200,145,0),-(BTN_SZ*2+13))
 local CloseBtn = mkTBtn("X",Color3.fromRGB(195,38,38),-(BTN_SZ+7))
+
+-- Referências de UI que precisam de update ao mudar idioma
+local langUpdateCallbacks = {}
+local function onLangChange(fn) table.insert(langUpdateCallbacks, fn) end
+local function applyLang()
+    langBtn.Text = LANG_LABELS[CURRENT_LANG]:sub(1,2)  -- só "PT"/"EN"/"ES"
+    for _, fn in ipairs(langUpdateCallbacks) do pcall(fn) end
+end
+
+langBtn.MouseButton1Click:Connect(function()
+    local idx = 1
+    for i,v in ipairs(LANG_CYCLE) do if v==CURRENT_LANG then idx=i; break end end
+    idx = (idx % #LANG_CYCLE) + 1
+    CURRENT_LANG = LANG_CYCLE[idx]
+    applyLang()
+end)
 
 -- ── CORPO ─────────────────────────────────────────────────
 local Body=Instance.new("Frame",Main)
@@ -309,12 +528,12 @@ Content.BackgroundTransparency=1; Content.ClipsDescendants=true
 -- ABAS
 -- ══════════════════════════════════════════════════════════
 local TABS={
-    {key="local",   ico="💬",lbl="Local",   fb=nil},
-    {key="global",  ico="🌍",lbl="Global",  fb="global"},
-    {key="brasil",  ico="🇧🇷",lbl="Brasil",  fb="brasil"},
-    {key="usa",     ico="🇺🇸",lbl="USA",     fb="usa"},
-    {key="privado", ico="🔒",lbl="Privado", fb=nil},
-    {key="debug",   ico="🔧",lbl="Debug",   fb=nil},
+    {key="local",   ico="💬",lbl_key="tab_local",   fb=nil},
+    {key="global",  ico="🌍",lbl_key="tab_global",  fb="global"},
+    {key="brasil",  ico="🇧🇷",lbl_key="tab_brasil",  fb="brasil"},
+    {key="usa",     ico="🇺🇸",lbl_key="tab_usa",     fb="usa"},
+    {key="privado", ico="🔒",lbl_key="tab_private", fb=nil},
+    {key="debug",   ico="🔧",lbl_key="tab_debug",   fb=nil},
 }
 local tabBtns={}; local panels={}; local msgCount={}; local activeKey=nil
 local unreadCount=0; local reportedUsers={}
@@ -357,9 +576,11 @@ local function mkTabBtn(tab)
     local lbl=Instance.new("TextLabel",btn)
     lbl.Size=UDim2.new(1,0,0,mob and 14 or 12); lbl.Position=UDim2.new(0,0,1,mob and -20 or -16)
     lbl.BackgroundTransparency=1; lbl.TextSize=mob and 8 or 7; lbl.Font=Enum.Font.Gotham
-    lbl.Text=tab.lbl; lbl.TextColor3=Color3.fromRGB(80,68,135)
-    tabBtns[tab.key]={btn=btn,ico=ico,lbl=lbl,ind=ind}
+    lbl.Text=T(tab.lbl_key); lbl.TextColor3=Color3.fromRGB(80,68,135)
+    tabBtns[tab.key]={btn=btn,ico=ico,lbl=lbl,ind=ind,lbl_key=tab.lbl_key}
     btn.MouseButton1Click:Connect(function() switchTab(tab.key) end)
+    -- atualiza ao mudar idioma
+    onLangChange(function() lbl.Text = T(tab.lbl_key) end)
 end
 
 local function buildPanel(key,noInput)
@@ -377,7 +598,6 @@ local function buildPanel(key,noInput)
     local ll=Instance.new("UIListLayout",scroll); ll.SortOrder=Enum.SortOrder.LayoutOrder; ll.Padding=UDim.new(0,2)
     local sp=Instance.new("UIPadding",scroll)
     sp.PaddingLeft=UDim.new(0,5); sp.PaddingRight=UDim.new(0,5); sp.PaddingTop=UDim.new(0,4); sp.PaddingBottom=UDim.new(0,4)
-    -- Atualiza CanvasSize manualmente e rola para o fim
     ll:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         local h = ll.AbsoluteContentSize.Y + 16
         scroll.CanvasSize = UDim2.new(0,0,0,h)
@@ -390,14 +610,15 @@ local function buildPanel(key,noInput)
         iF.BackgroundColor3=C_INPUT; iF.BorderSizePixel=0
         Instance.new("UICorner",iF).CornerRadius=UDim.new(0,10)
         Instance.new("UIStroke",iF).Color=Color3.fromRGB(58,38,148)
-        inputBox=Instance.new("TextBox",iF); inputBox.PlaceholderText="Escreva aqui..."; inputBox.Text=""
+        inputBox=Instance.new("TextBox",iF); inputBox.PlaceholderText=T("placeholder"); inputBox.Text=""
         inputBox.Size=UDim2.new(1,-(IN_H+12),1,0); inputBox.Position=UDim2.new(0,10,0,0)
         inputBox.BackgroundTransparency=1; inputBox.TextColor3=Color3.fromRGB(215,205,255)
         inputBox.PlaceholderColor3=Color3.fromRGB(62,52,112); inputBox.TextSize=FSZ
         inputBox.Font=Enum.Font.Gotham; inputBox.TextXAlignment=Enum.TextXAlignment.Left
         inputBox.ClearTextOnFocus=false; inputBox.MultiLine=false
+        onLangChange(function() inputBox.PlaceholderText = T("placeholder") end)
         sendBtn=Instance.new("TextButton",iF)
-        sendBtn.Text=">>>"; sendBtn.Size=UDim2.new(0,IN_H-4,0,IN_H-8); sendBtn.Position=UDim2.new(1,-(IN_H+2),0.5,-(IN_H-8)/2)
+        sendBtn.Text=T("send_btn"); sendBtn.Size=UDim2.new(0,IN_H-4,0,IN_H-8); sendBtn.Position=UDim2.new(1,-(IN_H+2),0.5,-(IN_H-8)/2)
         sendBtn.BackgroundColor3=C_SEND; sendBtn.TextColor3=Color3.new(1,1,1)
         sendBtn.TextSize=mob and 18 or 16; sendBtn.Font=Enum.Font.GothamBold; sendBtn.BorderSizePixel=0; sendBtn.AutoButtonColor=false
         Instance.new("UICorner",sendBtn).CornerRadius=UDim.new(0,8)
@@ -408,14 +629,47 @@ local function buildPanel(key,noInput)
     return panels[key]
 end
 
+-- ── Sons (declarados cedo para addMsg poder usar) ─────────
+local HapticSvc = pcall(function() return game:GetService("HapticService") end) and game:GetService("HapticService") or nil
+local SoundSvc  = game:GetService("SoundService")
+
+local notifSound = Instance.new("Sound")
+notifSound.SoundId = "rbxassetid://4590662766"
+notifSound.Volume = 0.4; notifSound.RollOffMaxDistance = 0
+pcall(function() notifSound.Parent = SoundSvc end)
+
+local sendSound = Instance.new("Sound")
+sendSound.SoundId = "rbxassetid://608537390"
+sendSound.Volume = 0.25; sendSound.RollOffMaxDistance = 0
+pcall(function() sendSound.Parent = SoundSvc end)
+
+local function playNotif()
+    pcall(function() notifSound:Play() end)
+    pcall(function()
+        if HapticSvc then
+            HapticSvc:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0.5)
+            task.delay(0.1, function() pcall(function() HapticSvc:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0) end) end)
+        end
+    end)
+    pcall(function()
+        if Main and Main.Visible then
+            Tween:Create(mSt, TweenInfo.new(0.12), {Color=Color3.fromRGB(255,200,50), Thickness=2.5}):Play()
+            task.delay(0.25, function() pcall(function() Tween:Create(mSt, TweenInfo.new(0.3), {Color=C_ACCENT, Thickness=1.5}):Play() end) end)
+        end
+    end)
+end
+
+local function playSend() pcall(function() sendSound:Play() end) end
+
 -- ── addMsg ────────────────────────────────────────────────
-local function addMsg(key,user,text,uid,senderAgeGroup,isSys)
+local privCode=nil  -- forward decl para addMsg poder ver
+
+local function addMsg(key,user,text,uid,senderAgeNum,isSys)
     local p=panels[key]; if not p or not p.scroll then return end
     msgCount[key]=(msgCount[key] or 0)+1
     if msgCount[key]>MAX_MSGS then
         local f=p.scroll:FindFirstChildWhichIsA("Frame"); if f then f:Destroy(); msgCount[key]=msgCount[key]-1 end
     end
-    -- Badge na bolinha + som/vibração
     if not isSys and user~=MYNAME then
         pcall(playNotif)
         if Bubble.Visible then
@@ -424,6 +678,7 @@ local function addMsg(key,user,text,uid,senderAgeGroup,isSys)
     end
     local row=Instance.new("Frame",p.scroll)
     row.Name="msg"; row.LayoutOrder=msgCount[key]; row.BackgroundTransparency=1; row.BorderSizePixel=0
+
     if isSys then
         row.Size=UDim2.new(1,0,0,20); row.AutomaticSize=Enum.AutomaticSize.Y
         local lb=Instance.new("TextLabel",row)
@@ -432,14 +687,13 @@ local function addMsg(key,user,text,uid,senderAgeGroup,isSys)
         lb.Font=Enum.Font.Gotham; lb.TextWrapped=true; lb.TextXAlignment=Enum.TextXAlignment.Center; lb.RichText=true
         lb.Text=tostring(text)
     else
-        -- verificar aviso de idade
         local showWarn=false; local warnTxt=""
-        local sAge = tonumber(senderAgeGroup) or 0
+        local sAge = tonumber(senderAgeNum) or 0
         if user~=MYNAME and MY_AGE_NUM>0 and sAge>0 then
             if MY_AGE_NUM < 18 and sAge >= 18 then
-                showWarn=true; warnTxt="⚠️ Este usuário é adulto ("..sAge.." anos). Tome cuidado!"
+                showWarn=true; warnTxt=T("warn_adult", sAge)
             elseif MY_AGE_NUM >= 18 and sAge < 18 then
-                showWarn=true; warnTxt="⚠️ Este usuário é menor de idade ("..sAge.." anos)."
+                showWarn=true; warnTxt=T("warn_minor", sAge)
             end
         end
 
@@ -452,7 +706,6 @@ local function addMsg(key,user,text,uid,senderAgeGroup,isSys)
         end
         Tween:Create(row,TweenInfo.new(0.2),{BackgroundTransparency= showWarn and 0.55 or 0.72}):Play()
 
-        -- Aviso banner
         if showWarn then
             local wb=Instance.new("Frame",row)
             wb.Size=UDim2.new(1,-10,0,0); wb.AutomaticSize=Enum.AutomaticSize.Y; wb.Position=UDim2.new(0,5,0,4)
@@ -468,7 +721,6 @@ local function addMsg(key,user,text,uid,senderAgeGroup,isSys)
 
         local yOff = showWarn and (FSZ+12) or 0
 
-        -- Avatar
         local avF=Instance.new("Frame",row)
         avF.Size=UDim2.new(0,AV_SZ,0,AV_SZ); avF.Position=UDim2.new(0,5,0,yOff+6)
         avF.BackgroundColor3=Color3.fromRGB(36,24,72); avF.BorderSizePixel=0
@@ -483,13 +735,9 @@ local function addMsg(key,user,text,uid,senderAgeGroup,isSys)
         txF.Position=UDim2.new(0,lx,0,yOff+5); txF.BackgroundTransparency=1
 
         local nc=(user==MYNAME) and "#FFD700" or "#AE9DFF"
-        -- pegar idade numérica do campo "an" se disponível
         local ageTag=""
-        local ageNum = tonumber(senderAgeGroup) or 0
-        if ageNum > 0 then
-            local ageColor = ageNum < 13 and "#6699FF" or (ageNum < 18 and "#AAAAFF" or "#AAFFAA")
-            ageTag = (' (%d)'):format(ageNum)
-        end
+        local ageNum = tonumber(senderAgeNum) or 0
+        if ageNum > 0 then ageTag = (' (%d)'):format(ageNum) end
 
         local nL=Instance.new("TextLabel",txF)
         nL.Size=UDim2.new(1,0,0,14); nL.BackgroundTransparency=1; nL.TextSize=FSZ-1; nL.Font=Enum.Font.GothamBold
@@ -501,58 +749,60 @@ local function addMsg(key,user,text,uid,senderAgeGroup,isSys)
         mL.BackgroundTransparency=1; mL.TextColor3=Color3.fromRGB(202,192,242); mL.TextSize=FSZ
         mL.Font=Enum.Font.Gotham; mL.TextWrapped=true; mL.TextXAlignment=Enum.TextXAlignment.Left; mL.Text=tostring(text)
 
-        -- Botão Reportar (destacado se showWarn)
         if user~=MYNAME then
             local rBtn=Instance.new("TextButton",txF)
-            rBtn.Text="🚨 Reportar"; rBtn.Size=UDim2.new(0,82,0,18); rBtn.Position=UDim2.new(0,0,1,4)
+            rBtn.Text=T("report_btn"); rBtn.Size=UDim2.new(0,82,0,18); rBtn.Position=UDim2.new(0,0,1,4)
             rBtn.BackgroundColor3= showWarn and Color3.fromRGB(180,40,40) or Color3.fromRGB(80,55,130)
             rBtn.BackgroundTransparency= showWarn and 0.2 or 0.65
             rBtn.TextColor3= showWarn and Color3.fromRGB(255,210,210) or Color3.fromRGB(180,160,220)
             rBtn.TextSize=FSZ-2; rBtn.Font=Enum.Font.GothamBold; rBtn.BorderSizePixel=0; rBtn.AutoButtonColor=false
             Instance.new("UICorner",rBtn).CornerRadius=UDim.new(0,5)
+            onLangChange(function()
+                if not reportedUsers[user] then rBtn.Text = T("report_btn") end
+            end)
             rBtn.MouseButton1Click:Connect(function()
-                if reportedUsers[user] then rBtn.Text="✔ Reportado"; return end
-                reportedUsers[user]=true; rBtn.Text="✔ Reportado"
+                if reportedUsers[user] then rBtn.Text=T("reported_btn"); return end
+                reportedUsers[user]=true; rBtn.Text=T("reported_btn")
                 rBtn.BackgroundColor3=Color3.fromRGB(35,110,35); rBtn.BackgroundTransparency=0.2
                 task.spawn(function()
                     fbPost("/reports.json",{reporter=MYNAME,reported=user,uid=uid or 0,ts=os.time(),g=game.Name})
                 end)
             end)
-            -- Botão Convidar pra Sala
+
             local invBtn=Instance.new("TextButton",txF)
-            invBtn.Text="+ Sala Priv"; invBtn.Size=UDim2.new(0,78,0,18)
+            invBtn.Text=T("invite_prv_btn"); invBtn.Size=UDim2.new(0,78,0,18)
             invBtn.Position=UDim2.new(0,88,1,4)
             invBtn.BackgroundColor3=Color3.fromRGB(30,90,160); invBtn.BackgroundTransparency=0.4
             invBtn.TextColor3=Color3.fromRGB(180,220,255)
             invBtn.TextSize=FSZ-2; invBtn.Font=Enum.Font.GothamBold; invBtn.BorderSizePixel=0; invBtn.AutoButtonColor=false
             Instance.new("UICorner",invBtn).CornerRadius=UDim.new(0,5)
+            onLangChange(function() invBtn.Text = T("invite_prv_btn") end)
             invBtn.MouseButton1Click:Connect(function()
                 if not privCode then
-                    invBtn.Text="Crie sala 1o!"; task.delay(2,function() invBtn.Text="+ Sala Priv" end); return
+                    invBtn.Text=T("create_first"); task.delay(2,function() invBtn.Text=T("invite_prv_btn") end); return
                 end
-                invBtn.Text="Enviando..."; invBtn.BackgroundTransparency=0.6
+                invBtn.Text=T("invite_sending"); invBtn.BackgroundTransparency=0.6
                 task.spawn(function()
                     local invKey = sfen(user)
                     fbPut("/invites/"..invKey..".json",{
                         from=MYNAME, fromUid=MYUID, code=privCode,
                         ts=os.time(), to=user
                     })
-                    invBtn.Text="✔ Convidado!"
+                    invBtn.Text=T("invite_sent")
                     invBtn.BackgroundColor3=Color3.fromRGB(30,130,60)
                     invBtn.BackgroundTransparency=0.2
                 end)
             end)
+
             local rsp=Instance.new("Frame",txF); rsp.Size=UDim2.new(1,0,0,26); rsp.Position=UDim2.new(0,0,1,0); rsp.BackgroundTransparency=1
         end
 
         local bp=Instance.new("Frame",row); bp.Size=UDim2.new(1,0,0,8); bp.Position=UDim2.new(0,0,1,0); bp.BackgroundTransparency=1
     end
-
 end
 
 local function sysMsg(key,txt) addMsg(key,"",txt,0,nil,true) end
 
--- Montar abas e painéis
 for _,tab in ipairs(TABS) do
     mkTabBtn(tab)
     local noIn=(tab.key=="local" or tab.key=="debug" or tab.key=="privado")
@@ -562,7 +812,8 @@ end
 -- ══════════════════════════════════════════════════════════
 -- CHAT LOCAL
 -- ══════════════════════════════════════════════════════════
-sysMsg("local","✅ Chat local conectado!")
+sysMsg("local", T("sys_local"))
+
 local function hookLocalChat()
     local ok=pcall(function()
         local tcs=game:GetService("TextChatService")
@@ -585,7 +836,7 @@ task.spawn(hookLocalChat)
 -- ══════════════════════════════════════════════════════════
 local function setupChannel(key,fb)
     local p=panels[key]; if not p then return end
-    sysMsg(key,"🔗 Canal ["..fb.."] conectando...")
+    sysMsg(key, T("sys_connecting", fb))
     local lastSent=0; local spamCount=0
     local function enviar(txt)
         txt=txt and txt:match("^%s*(.-)%s*$") or ""; if txt=="" then return end
@@ -593,13 +844,11 @@ local function setupChannel(key,fb)
         if (now-lastSent) < 2 then
             spamCount=spamCount+1
             if spamCount >= 4 then
-                sysMsg(key,"⛔ Spam detectado! Aguarde 8s.")
+                sysMsg(key, T("sys_spam"))
                 if p.input then p.input.Text="" end
-                task.delay(8,function() spamCount=0; lastSent=0 end)
-                return
+                task.delay(8,function() spamCount=0; lastSent=0 end); return
             end
-            sysMsg(key,"⏳ Espere "..tostring(2-(now-lastSent)).."s")
-            return
+            sysMsg(key, T("sys_wait", 2-(now-lastSent))); return
         end
         spamCount=math.max(0,spamCount-1); lastSent=now
         task.spawn(function()
@@ -619,14 +868,14 @@ local function setupChannel(key,fb)
                 local list={}
                 for k,v in pairs(data) do
                     if type(v)=="table" and not known[k] then
-                        known[k]=true; table.insert(list,{ts=v.ts or 0,u=v.u or "?",t=v.t or "",uid=v.uid or 0,ag=v.ag or ""})
+                        known[k]=true; table.insert(list,{ts=v.ts or 0,u=v.u or "?",t=v.t or "",uid=v.uid or 0,an=v.an or 0})
                     end
                 end
                 table.sort(list,function(a,b) return a.ts<b.ts end)
-                if first then first=false; if #list==0 then sysMsg(key,"📭 Vazio. Seja o primeiro!") else sysMsg(key,"✅ Conectado!") end end
-                for _,m in ipairs(list) do addMsg(key,m.u,m.t,m.uid,m.an or 0,false) end
+                if first then first=false; if #list==0 then sysMsg(key, T("room_empty")) else sysMsg(key, T("room_connected")) end end
+                for _,m in ipairs(list) do addMsg(key,m.u,m.t,m.uid,m.an,false) end
             else
-                if first then first=false; sysMsg(key,"⚠️ Erro: "..(err or "?").." | 🔧 Debug") end
+                if first then first=false; sysMsg(key,"⚠️ Erro: "..(err or "?")) end
             end
         end
     end)
@@ -648,7 +897,7 @@ local function pollPresence()
                 if knownUsers[sk]==nil and fresh then knownUsers[sk]={n=info.n or sk,alive=true}
                 elseif knownUsers[sk] and knownUsers[sk].alive and not fresh then
                     knownUsers[sk].alive=false; local nm=info.n or sk
-                    for _,ch in ipairs({"global","brasil","usa"}) do sysMsg(ch,"👋 "..nm.." saiu") end
+                    for _,ch in ipairs({"global","brasil","usa"}) do sysMsg(ch, T("left_msg", nm)) end
                     task.delay(30,function() fbDel("/presence/"..sk..".json") end)
                 end
             end
@@ -658,70 +907,132 @@ end
 pushPresence()
 task.spawn(function() while Main.Parent do task.wait(12); pushPresence(); pollPresence() end end)
 
-
 -- ══════════════════════════════════════════════════════════
--- SOM E VIBRAÇÃO DE NOTIFICAÇÃO
+-- SALA PRIVADA  ← DEFINIDA ANTES DE showInvitePopup
 -- ══════════════════════════════════════════════════════════
-local HapticSvc = pcall(function() return game:GetService("HapticService") end) and game:GetService("HapticService") or nil
-local SoundSvc  = game:GetService("SoundService")
+local privKnown={}
 
--- Som de notificação (beep curto)
-local notifSound = Instance.new("Sound")
-notifSound.SoundId = "rbxassetid://4590662766"  -- beep curto do Roblox
-notifSound.Volume = 0.4
-notifSound.RollOffMaxDistance = 0
-pcall(function() notifSound.Parent = SoundSvc end)
+-- Agora atribuímos a variável forward-declarada
+startPrivateRoom = function(code, isCreator)
+    privCode=code; privKnown={}
+    local p=panels["privado"]; if not p then return end
+    for _,c in ipairs(p.frame:GetChildren()) do c:Destroy() end
 
--- Som de envio (clique)
-local sendSound = Instance.new("Sound")
-sendSound.SoundId = "rbxassetid://608537390"  -- click
-sendSound.Volume = 0.25
-sendSound.RollOffMaxDistance = 0
-pcall(function() sendSound.Parent = SoundSvc end)
+    local scroll2=Instance.new("ScrollingFrame",p.frame)
+    scroll2.Size=UDim2.new(1,-8,1,-(IN_H+36)); scroll2.Position=UDim2.new(0,4,0,30)
+    scroll2.BackgroundColor3=Color3.fromRGB(9,7,20); scroll2.BorderSizePixel=0
+    scroll2.ScrollBarThickness=3; scroll2.ScrollBarImageColor3=Color3.fromRGB(138,42,205)
+    scroll2.CanvasSize=UDim2.new(0,0,0,0); scroll2.AutomaticCanvasSize=Enum.AutomaticSize.None
+    Instance.new("UICorner",scroll2).CornerRadius=UDim.new(0,8)
+    local ll2=Instance.new("UIListLayout",scroll2); ll2.SortOrder=Enum.SortOrder.LayoutOrder; ll2.Padding=UDim.new(0,2)
+    local sp2=Instance.new("UIPadding",scroll2)
+    sp2.PaddingLeft=UDim.new(0,5); sp2.PaddingRight=UDim.new(0,5); sp2.PaddingTop=UDim.new(0,4); sp2.PaddingBottom=UDim.new(0,4)
+    ll2:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        local h2 = ll2.AbsoluteContentSize.Y + 16
+        scroll2.CanvasSize = UDim2.new(0,0,0,h2)
+        scroll2.CanvasPosition = Vector2.new(0, math.max(0, h2 - scroll2.AbsoluteSize.Y))
+    end)
 
-local function playNotif()
-    pcall(function() notifSound:Play() end)
-    -- Vibração no mobile
-    pcall(function()
-        if HapticSvc then
-            HapticSvc:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0.5)
-            task.delay(0.1, function()
-                pcall(function() HapticSvc:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0) end)
-            end)
+    p.scroll=scroll2; msgCount["privado"]=0
+
+    local cLbl=Instance.new("TextLabel",p.frame)
+    cLbl.Size=UDim2.new(1,-8,0,24); cLbl.Position=UDim2.new(0,4,0,3)
+    cLbl.BackgroundTransparency=1; cLbl.TextXAlignment=Enum.TextXAlignment.Left
+    cLbl.TextColor3=Color3.fromRGB(185,162,240); cLbl.TextSize=FSZ-1; cLbl.Font=Enum.Font.Gotham; cLbl.RichText=true
+    cLbl.Text='🔒 <font color="#FFD700"><b>'..code.."</b></font> "..(isCreator and T("room_created") or T("room_joined"))
+    onLangChange(function()
+        cLbl.Text='🔒 <font color="#FFD700"><b>'..code.."</b></font> "..(isCreator and T("room_created") or T("room_joined"))
+    end)
+
+    local iF2=Instance.new("Frame",p.frame)
+    iF2.Size=UDim2.new(1,-8,0,IN_H); iF2.Position=UDim2.new(0,4,1,-(IN_H+5))
+    iF2.BackgroundColor3=Color3.fromRGB(13,10,32); iF2.BorderSizePixel=0
+    Instance.new("UICorner",iF2).CornerRadius=UDim.new(0,10); Instance.new("UIStroke",iF2).Color=Color3.fromRGB(112,36,170)
+
+    local inBox=Instance.new("TextBox",iF2)
+    inBox.PlaceholderText=T("placeholder_prv"); inBox.Text=""
+    inBox.Size=UDim2.new(1,-(IN_H+12),1,0); inBox.Position=UDim2.new(0,10,0,0)
+    inBox.BackgroundTransparency=1; inBox.TextColor3=Color3.fromRGB(215,205,255)
+    inBox.PlaceholderColor3=Color3.fromRGB(78,58,128); inBox.TextSize=FSZ; inBox.Font=Enum.Font.Gotham
+    inBox.TextXAlignment=Enum.TextXAlignment.Left; inBox.ClearTextOnFocus=false
+    onLangChange(function() inBox.PlaceholderText = T("placeholder_prv") end)
+
+    local sBtn2=Instance.new("TextButton",iF2); sBtn2.Text=T("send_btn")
+    sBtn2.Size=UDim2.new(0,IN_H-4,0,IN_H-8); sBtn2.Position=UDim2.new(1,-(IN_H+2),0.5,-(IN_H-8)/2)
+    sBtn2.BackgroundColor3=Color3.fromRGB(138,36,195); sBtn2.TextColor3=Color3.new(1,1,1)
+    sBtn2.TextSize=mob and 18 or 16; sBtn2.Font=Enum.Font.GothamBold; sBtn2.BorderSizePixel=0; sBtn2.AutoButtonColor=false
+    Instance.new("UICorner",sBtn2).CornerRadius=UDim.new(0,8)
+
+    p.input=inBox; p.send=sBtn2
+
+    local function addPS(txt)
+        if not p.scroll then return end
+        msgCount["privado"]=(msgCount["privado"] or 0)+1
+        local row=Instance.new("Frame",p.scroll); row.LayoutOrder=msgCount["privado"]; row.BackgroundTransparency=1
+        row.Size=UDim2.new(1,0,0,20); row.AutomaticSize=Enum.AutomaticSize.Y
+        local lb=Instance.new("TextLabel",row); lb.Size=UDim2.new(1,-4,0,0); lb.AutomaticSize=Enum.AutomaticSize.Y
+        lb.Position=UDim2.new(0,2,0,2); lb.BackgroundTransparency=1
+        lb.TextColor3=Color3.fromRGB(162,78,220); lb.TextSize=FSZ-1; lb.Font=Enum.Font.Gotham
+        lb.TextWrapped=true; lb.TextXAlignment=Enum.TextXAlignment.Center; lb.Text=tostring(txt)
+    end
+
+    local function sendP(txt)
+        txt=txt and txt:match("^%s*(.-)%s*$") or ""; if txt=="" then return end
+        task.spawn(function()
+            fbPost("/rooms/"..code.."/msgs.json",{u=MYNAME,uid=MYUID,t=txt,ts=os.time(),ag=MY_AGE_GROUP,an=MY_AGE_NUM})
+        end)
+        inBox.Text=""
+    end
+
+    sBtn2.MouseButton1Click:Connect(function() sendP(inBox.Text) end)
+    inBox.FocusLost:Connect(function(enter) if enter then sendP(inBox.Text) end end)
+    addPS("🔒 "..code..(isCreator and " — "..T("room_waiting"):sub(3) or " — "..T("room_joined")))
+
+    task.spawn(function()
+        local first=true
+        while Main.Parent and privCode==code do
+            task.wait(first and 0.5 or POLL_INT)
+            local data2,err2=fbList("rooms/"..code.."/msgs")
+            if data2 and type(data2)=="table" then
+                local list2={}
+                for k,v in pairs(data2) do
+                    if type(v)=="table" and not privKnown[k] then
+                        privKnown[k]=true; table.insert(list2,{ts=v.ts or 0,u=v.u or "?",t=v.t or "",uid=v.uid or 0,an=v.an or 0})
+                    end
+                end
+                table.sort(list2,function(a,b) return a.ts<b.ts end)
+                if first then first=false
+                    if #list2==0 then addPS(T("room_waiting")) else addPS(T("room_active")) end
+                end
+                for _,m in ipairs(list2) do
+                    addMsg("privado",m.u,m.t,m.uid,m.an,false)
+                    if Bubble.Visible and m.u ~= MYNAME then
+                        unreadCount = unreadCount + 1
+                        bBadge.Text = unreadCount > 9 and "9+" or tostring(unreadCount)
+                        bBadge.Visible = true
+                    end
+                end
+            else
+                if first then first=false; addPS("⚠️ "..(err2 or "?")) end
+            end
         end
     end)
-    -- Piscar borda da janela (feedback visual)
-    pcall(function()
-        if Main and Main.Visible then
-            Tween:Create(mSt, TweenInfo.new(0.12), {Color=Color3.fromRGB(255,200,50), Thickness=2.5}):Play()
-            task.delay(0.25, function()
-                pcall(function() Tween:Create(mSt, TweenInfo.new(0.3), {Color=C_ACCENT, Thickness=1.5}):Play() end)
-            end)
-        end
-    end)
-end
 
-local function playSend()
-    pcall(function() sendSound:Play() end)
+    switchTab("privado")
 end
 
 -- ══════════════════════════════════════════════════════════
--- SISTEMA DE CONVITES
+-- POPUP DE CONVITE  ← startPrivateRoom já está definida aqui
 -- ══════════════════════════════════════════════════════════
-local myInvKey = sfen(MYNAME)
-
 local function showInvitePopup(fromName, roomCode)
-    -- Overlay escuro
     local ov=Instance.new("Frame",SG)
     ov.Size=UDim2.new(1,0,1,0); ov.BackgroundColor3=Color3.fromRGB(0,0,0)
     ov.BackgroundTransparency=0.5; ov.ZIndex=200; ov.BorderSizePixel=0
 
-    -- Card do convite
     local pop=Instance.new("Frame",SG)
     pop.AnchorPoint=Vector2.new(0.5,0.5); pop.Position=UDim2.new(0.5,0,0.5,0)
     pop.Size=UDim2.new(0,0,0,0); pop.ZIndex=201
-    pop.BackgroundColor3=Color3.fromRGB(10,8,28); pop.BorderSizePixel=0
-    pop.ClipsDescendants=true
+    pop.BackgroundColor3=Color3.fromRGB(10,8,28); pop.BorderSizePixel=0; pop.ClipsDescendants=true
     Instance.new("UICorner",pop).CornerRadius=UDim.new(0,16)
     local pSt=Instance.new("UIStroke",pop); pSt.Color=Color3.fromRGB(80,160,255); pSt.Thickness=1.8
 
@@ -739,13 +1050,13 @@ local function showInvitePopup(fromName, roomCode)
     t1.Size=UDim2.new(1,-20,0,mob and 26 or 22); t1.Position=UDim2.new(0,10,0,mob and 58 or 50)
     t1.BackgroundTransparency=1; t1.TextColor3=Color3.fromRGB(230,220,255)
     t1.TextSize=mob and 15 or 14; t1.Font=Enum.Font.GothamBold; t1.ZIndex=202
-    t1.Text=fromName.." te convidou!"
+    t1.Text=fromName..T("invite_title")
 
     local t2=Instance.new("TextLabel",pop)
     t2.Size=UDim2.new(1,-20,0,mob and 20 or 18); t2.Position=UDim2.new(0,10,0,mob and 86 or 76)
     t2.BackgroundTransparency=1; t2.TextColor3=Color3.fromRGB(120,160,220)
     t2.TextSize=mob and 12 or 11; t2.Font=Enum.Font.Gotham; t2.ZIndex=202
-    t2.Text="Sala privada: "..roomCode
+    t2.Text=T("invite_room")..roomCode
 
     local BW=(PW-36)/2
     local BY=mob and 122 or 110
@@ -754,43 +1065,55 @@ local function showInvitePopup(fromName, roomCode)
     local accBtn=Instance.new("TextButton",pop)
     accBtn.Size=UDim2.new(0,BW,0,BH); accBtn.Position=UDim2.new(0,10,0,BY)
     accBtn.BackgroundColor3=Color3.fromRGB(30,130,55); accBtn.TextColor3=Color3.new(1,1,1)
-    accBtn.Text="✔ Entrar"; accBtn.TextSize=mob and 14 or 13; accBtn.Font=Enum.Font.GothamBold
+    accBtn.Text=T("invite_accept"); accBtn.TextSize=mob and 14 or 13; accBtn.Font=Enum.Font.GothamBold
     accBtn.BorderSizePixel=0; accBtn.AutoButtonColor=false; accBtn.ZIndex=202
     Instance.new("UICorner",accBtn).CornerRadius=UDim.new(0,10)
 
     local decBtn=Instance.new("TextButton",pop)
     decBtn.Size=UDim2.new(0,BW,0,BH); decBtn.Position=UDim2.new(0,BW+26,0,BY)
     decBtn.BackgroundColor3=Color3.fromRGB(150,30,30); decBtn.TextColor3=Color3.new(1,1,1)
-    decBtn.Text="✕ Recusar"; decBtn.TextSize=mob and 14 or 13; decBtn.Font=Enum.Font.GothamBold
+    decBtn.Text=T("invite_decline"); decBtn.TextSize=mob and 14 or 13; decBtn.Font=Enum.Font.GothamBold
     decBtn.BorderSizePixel=0; decBtn.AutoButtonColor=false; decBtn.ZIndex=202
     Instance.new("UICorner",decBtn).CornerRadius=UDim.new(0,10)
+
+    -- Atualizar idioma no popup se o usuário mudar antes de responder
+    onLangChange(function()
+        if pop and pop.Parent then
+            t1.Text = fromName..T("invite_title")
+            t2.Text = T("invite_room")..roomCode
+            accBtn.Text = T("invite_accept")
+            decBtn.Text = T("invite_decline")
+        end
+    end)
 
     local function closePopup()
         Tween:Create(pop,TweenInfo.new(0.2,Enum.EasingStyle.Quart,Enum.EasingDirection.In),{Size=UDim2.new(0,0,0,0)}):Play()
         Tween:Create(ov,TweenInfo.new(0.2),{BackgroundTransparency=1}):Play()
         task.delay(0.25,function() pop:Destroy(); ov:Destroy() end)
-        -- Limpar convite do Firebase
         task.spawn(function() fbDel("/invites/"..myInvKey..".json") end)
     end
 
     accBtn.MouseButton1Click:Connect(function()
         closePopup()
+        -- ✅ FIX: startPrivateRoom já está definida aqui
         task.spawn(function()
             local info=fbGet("/rooms/"..roomCode.."/info.json")
             if info and type(info)=="table" and info.c then
-                startPrivateRoom(roomCode,false)
+                startPrivateRoom(roomCode, false)
             else
-                sysMsg("global","❌ Sala não encontrada ou expirou.")
+                sysMsg("global", T("room_expired"))
             end
         end)
     end)
-    decBtn.MouseButton1Click:Connect(function() closePopup() end)
+    decBtn.MouseButton1Click:Connect(closePopup)
 
-    -- Auto-fechar em 30s
-    task.delay(30,function()
+    task.delay(30, function()
         if pop and pop.Parent then closePopup() end
     end)
 end
+
+-- myInvKey para closePopup acima
+local myInvKey = sfen(MYNAME)
 
 -- Poll de convites (checa a cada 4s)
 task.spawn(function()
@@ -799,158 +1122,85 @@ task.spawn(function()
     while Main.Parent do
         task.wait(4)
         local inv = fbGet("/invites/"..myInvKey..".json")
-        if inv and type(inv)=="table" and inv.code and inv.ts and tonumber(inv.ts) > lastInviteTs then
-            lastInviteTs = tonumber(inv.ts)
-            local fromN = inv.from or "Alguém"
-            local code2 = inv.code
-            -- Mostrar popup na thread principal
-            showInvitePopup(fromN, code2)
+        if inv and type(inv)=="table" and inv.code and inv.ts then
+            local ts = tonumber(inv.ts) or 0
+            -- só mostra se for um convite novo (nos últimos 60s) e ainda não processado
+            if ts > lastInviteTs and (os.time() - ts) < 60 then
+                lastInviteTs = ts
+                local fromN = tostring(inv.from or "Someone")
+                local code2 = tostring(inv.code)
+                showInvitePopup(fromN, code2)
+            end
         end
     end
 end)
 
-
 -- ══════════════════════════════════════════════════════════
--- SALA PRIVADA
+-- PAINEL DE CONTROLE DE SALA PRIVADA
 -- ══════════════════════════════════════════════════════════
-local privCode=nil; local privKnown={}
-
-local function startPrivateRoom(code,isCreator)
-    privCode=code; privKnown={}
-    local p=panels["privado"]; if not p then return end
-    for _,c in ipairs(p.frame:GetChildren()) do c:Destroy() end
-    local scroll2=Instance.new("ScrollingFrame",p.frame)
-    scroll2.Size=UDim2.new(1,-8,1,-(IN_H+36)); scroll2.Position=UDim2.new(0,4,0,30)
-    scroll2.BackgroundColor3=Color3.fromRGB(9,7,20); scroll2.BorderSizePixel=0
-    scroll2.ScrollBarThickness=3; scroll2.ScrollBarImageColor3=Color3.fromRGB(138,42,205)
-    scroll2.CanvasSize=UDim2.new(0,0,0,0); scroll2.AutomaticCanvasSize=Enum.AutomaticSize.None
-    Instance.new("UICorner",scroll2).CornerRadius=UDim.new(0,8)
-    local ll2=Instance.new("UIListLayout",scroll2); ll2.SortOrder=Enum.SortOrder.LayoutOrder; ll2.Padding=UDim.new(0,2)
-    local sp2=Instance.new("UIPadding",scroll2)
-    sp2.PaddingLeft=UDim.new(0,5); sp2.PaddingRight=UDim.new(0,5); sp2.PaddingTop=UDim.new(0,4); sp2.PaddingBottom=UDim.new(0,4)
-    ll2:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        local h2 = ll2.AbsoluteContentSize.Y + 16
-        scroll2.CanvasSize = UDim2.new(0,0,0,h2)
-        scroll2.CanvasPosition = Vector2.new(0, math.max(0, h2 - scroll2.AbsoluteSize.Y))
-    end)
-
-    p.scroll=scroll2; msgCount["privado"]=0
-    local cLbl=Instance.new("TextLabel",p.frame)
-    cLbl.Size=UDim2.new(1,-8,0,24); cLbl.Position=UDim2.new(0,4,0,3)
-    cLbl.BackgroundTransparency=1; cLbl.TextXAlignment=Enum.TextXAlignment.Left
-    cLbl.TextColor3=Color3.fromRGB(185,162,240); cLbl.TextSize=FSZ-1; cLbl.Font=Enum.Font.Gotham; cLbl.RichText=true
-    cLbl.Text='🔒 <font color="#FFD700"><b>'..code.."</b></font> "..(isCreator and "· você criou" or "· você entrou")
-    local iF2=Instance.new("Frame",p.frame)
-    iF2.Size=UDim2.new(1,-8,0,IN_H); iF2.Position=UDim2.new(0,4,1,-(IN_H+5))
-    iF2.BackgroundColor3=Color3.fromRGB(13,10,32); iF2.BorderSizePixel=0
-    Instance.new("UICorner",iF2).CornerRadius=UDim.new(0,10); Instance.new("UIStroke",iF2).Color=Color3.fromRGB(112,36,170)
-    local inBox=Instance.new("TextBox",iF2); inBox.PlaceholderText="Mensagem privada..."; inBox.Text=""
-    inBox.Size=UDim2.new(1,-(IN_H+12),1,0); inBox.Position=UDim2.new(0,10,0,0)
-    inBox.BackgroundTransparency=1; inBox.TextColor3=Color3.fromRGB(215,205,255)
-    inBox.PlaceholderColor3=Color3.fromRGB(78,58,128); inBox.TextSize=FSZ; inBox.Font=Enum.Font.Gotham
-    inBox.TextXAlignment=Enum.TextXAlignment.Left; inBox.ClearTextOnFocus=false
-    local sBtn2=Instance.new("TextButton",iF2); sBtn2.Text=">>>"; sBtn2.Size=UDim2.new(0,IN_H-4,0,IN_H-8)
-    sBtn2.Position=UDim2.new(1,-(IN_H+2),0.5,-(IN_H-8)/2)
-    sBtn2.BackgroundColor3=Color3.fromRGB(138,36,195); sBtn2.TextColor3=Color3.new(1,1,1)
-    sBtn2.TextSize=mob and 18 or 16; sBtn2.Font=Enum.Font.GothamBold; sBtn2.BorderSizePixel=0; sBtn2.AutoButtonColor=false
-    Instance.new("UICorner",sBtn2).CornerRadius=UDim.new(0,8)
-    p.input=inBox; p.send=sBtn2
-    local function addPS(txt)
-        if not p.scroll then return end
-        msgCount["privado"]=(msgCount["privado"] or 0)+1
-        local row=Instance.new("Frame",p.scroll); row.LayoutOrder=msgCount["privado"]; row.BackgroundTransparency=1
-        row.Size=UDim2.new(1,0,0,20); row.AutomaticSize=Enum.AutomaticSize.Y
-        local lb=Instance.new("TextLabel",row); lb.Size=UDim2.new(1,-4,0,0); lb.AutomaticSize=Enum.AutomaticSize.Y
-        lb.Position=UDim2.new(0,2,0,2); lb.BackgroundTransparency=1
-        lb.TextColor3=Color3.fromRGB(162,78,220); lb.TextSize=FSZ-1; lb.Font=Enum.Font.Gotham
-        lb.TextWrapped=true; lb.TextXAlignment=Enum.TextXAlignment.Center; lb.Text=tostring(txt)
-    end
-    local function addPM(user,txt,uid2,ag2)
-        addMsg("privado",user,txt,uid2,ag2,false)
-    end
-    local function sendP(txt)
-        txt=txt and txt:match("^%s*(.-)%s*$") or ""; if txt=="" then return end
-        task.spawn(function() fbPost("/rooms/"..code.."/msgs.json",{u=MYNAME,uid=MYUID,t=txt,ts=os.time(),ag=MY_AGE_GROUP,an=MY_AGE_NUM}) end)
-        inBox.Text=""
-    end
-    sBtn2.MouseButton1Click:Connect(function() sendP(inBox.Text) end)
-    inBox.FocusLost:Connect(function(enter) if enter then sendP(inBox.Text) end end)
-    addPS("🔒 Sala: "..code..(isCreator and " — aguarde amigo..." or " — você entrou!"))
-    task.spawn(function()
-        local first=true
-        while Main.Parent and privCode==code do
-            task.wait(first and 0.5 or POLL_INT)
-            local data2,err2=fbList("rooms/"..code.."/msgs")
-            if data2 and type(data2)=="table" then
-                local list2={}
-                for k,v in pairs(data2) do
-                    if type(v)=="table" and not privKnown[k] then
-                        privKnown[k]=true; table.insert(list2,{ts=v.ts or 0,u=v.u or "?",t=v.t or "",uid=v.uid or 0,ag=v.ag or "",an=v.an or 0})
-                    end
-                end
-                table.sort(list2,function(a,b) return a.ts<b.ts end)
-                if first then first=false; if #list2==0 then addPS("📭 Sala vazia. Manda o código!") else addPS("✅ Sala ativa!") end end
-                for _,m in ipairs(list2) do
-                    addPM(m.u,m.t,m.uid,m.an or 0)
-                    -- Notificação na bolinha se minimizado
-                    if Bubble.Visible and m.u ~= MYNAME then
-                        unreadCount = unreadCount + 1
-                        bBadge.Text = unreadCount > 9 and "9+" or tostring(unreadCount)
-                        bBadge.Visible = true
-                    end
-                end
-            else
-                if first then first=false; addPS("⚠️ Erro: "..(err2 or "?")) end
-            end
-        end
-    end)
-    switchTab("privado")
-end
-
 task.defer(function()
     task.wait(0.5)
     local p=panels["privado"]; if not p then return end
-    sysMsg("privado","🔒 Sala Privada Global"); sysMsg("privado","Crie ou entre com código")
+    sysMsg("privado", T("room_private_title"))
+    sysMsg("privado", T("room_private_sub"))
+
     local ctrl=Instance.new("Frame",p.frame)
     ctrl.Name="PrivCtrl"; ctrl.AnchorPoint=Vector2.new(0.5,0.5)
     ctrl.Size=UDim2.new(0.90,0,0,0); ctrl.AutomaticSize=Enum.AutomaticSize.Y
     ctrl.Position=UDim2.new(0.5,0,0.46,0); ctrl.BackgroundTransparency=1
     local cll=Instance.new("UIListLayout",ctrl)
     cll.FillDirection=Enum.FillDirection.Vertical; cll.Padding=UDim.new(0,10); cll.HorizontalAlignment=Enum.HorizontalAlignment.Center
+
     local cBtn=Instance.new("TextButton",ctrl)
-    cBtn.Text="✨ Criar Sala Privada"; cBtn.Size=UDim2.new(1,0,0,IN_H+4)
+    cBtn.Text=T("create_room"); cBtn.Size=UDim2.new(1,0,0,IN_H+4)
     cBtn.BackgroundColor3=Color3.fromRGB(88,36,182); cBtn.TextColor3=Color3.new(1,1,1)
     cBtn.TextSize=mob and 13 or 12; cBtn.Font=Enum.Font.GothamBold; cBtn.BorderSizePixel=0; cBtn.AutoButtonColor=false
     Instance.new("UICorner",cBtn).CornerRadius=UDim.new(0,10)
+    onLangChange(function() if cBtn and cBtn.Parent then cBtn.Text = T("create_room") end end)
+
     local joinF=Instance.new("Frame",ctrl)
     joinF.Size=UDim2.new(1,0,0,IN_H+4); joinF.BackgroundColor3=Color3.fromRGB(13,10,32); joinF.BorderSizePixel=0
     Instance.new("UICorner",joinF).CornerRadius=UDim.new(0,10); Instance.new("UIStroke",joinF).Color=Color3.fromRGB(78,46,162)
-    local codeBox2=Instance.new("TextBox",joinF); codeBox2.PlaceholderText="Código da sala..."; codeBox2.Text=""
+
+    local codeBox2=Instance.new("TextBox",joinF)
+    codeBox2.PlaceholderText=T("placeholder_code"); codeBox2.Text=""
     codeBox2.Size=UDim2.new(1,-(IN_H+16),1,0); codeBox2.Position=UDim2.new(0,10,0,0)
     codeBox2.BackgroundTransparency=1; codeBox2.TextColor3=Color3.fromRGB(220,210,255)
     codeBox2.PlaceholderColor3=Color3.fromRGB(78,64,128); codeBox2.TextSize=FSZ
     codeBox2.Font=Enum.Font.Gotham; codeBox2.TextXAlignment=Enum.TextXAlignment.Left; codeBox2.ClearTextOnFocus=false
+    onLangChange(function() if codeBox2 and codeBox2.Parent then codeBox2.PlaceholderText = T("placeholder_code") end end)
+
     local jBtn=Instance.new("TextButton",joinF)
-    jBtn.Text=">>>"; jBtn.Size=UDim2.new(0,IN_H-2,0,IN_H-4); jBtn.Position=UDim2.new(1,-(IN_H+4),0.5,-(IN_H-4)/2)
+    jBtn.Text=T("send_btn"); jBtn.Size=UDim2.new(0,IN_H-2,0,IN_H-4); jBtn.Position=UDim2.new(1,-(IN_H+4),0.5,-(IN_H-4)/2)
     jBtn.BackgroundColor3=Color3.fromRGB(26,112,52); jBtn.TextColor3=Color3.new(1,1,1)
     jBtn.TextSize=mob and 18 or 16; jBtn.Font=Enum.Font.GothamBold; jBtn.BorderSizePixel=0; jBtn.AutoButtonColor=false
     Instance.new("UICorner",jBtn).CornerRadius=UDim.new(0,8)
+
     cBtn.MouseButton1Click:Connect(function()
-        cBtn.Text="⏳ Criando..."; cBtn.Active=false
+        cBtn.Text=T("creating_room"); cBtn.Active=false
         task.spawn(function()
-            local code=mkCode(); fbPut("/rooms/"..code.."/info.json",{c=MYNAME,uid=MYUID,ts=os.time()})
-            ctrl:Destroy(); startPrivateRoom(code,true)
+            local code=mkCode()
+            fbPut("/rooms/"..code.."/info.json",{c=MYNAME,uid=MYUID,ts=os.time()})
+            ctrl:Destroy()
+            startPrivateRoom(code, true)
         end)
     end)
+
     local function doJoin()
-        local code=codeBox2.Text:upper():gsub("%s",""); if #code<4 then sysMsg("privado","⚠️ Código inválido!"); return end
+        local code=codeBox2.Text:upper():gsub("%s","")
+        if #code<4 then sysMsg("privado", T("invalid_code")); return end
         jBtn.Text="⏳"; jBtn.Active=false
         task.spawn(function()
             local info=fbGet("/rooms/"..code.."/info.json")
-            if info and type(info)=="table" and info.c then ctrl:Destroy(); startPrivateRoom(code,false)
-            else jBtn.Text=">>>"; jBtn.Active=true; sysMsg("privado","❌ Sala não encontrada!") end
+            if info and type(info)=="table" and info.c then
+                ctrl:Destroy(); startPrivateRoom(code, false)
+            else
+                jBtn.Text=T("send_btn"); jBtn.Active=true
+                sysMsg("privado", T("room_not_found"))
+            end
         end)
     end
+
     jBtn.MouseButton1Click:Connect(doJoin)
     codeBox2.FocusLost:Connect(function(e) if e then doJoin() end end)
 end)
@@ -959,31 +1209,38 @@ end)
 -- DEBUG
 -- ══════════════════════════════════════════════════════════
 local function runDiag()
-    sysMsg("debug","🔍 Iniciando diagnóstico..."); task.wait(0.1)
-    addMsg("debug","HTTP","Função: "..httpName,0,nil,false)
-    if not httpFn and not useHttpSvc then sysMsg("debug","❌ Sem HTTP! Ative rede no executor."); return end
-    sysMsg("debug","📡 Testando Firebase...")
+    sysMsg("debug", T("sys_diag_start")); task.wait(0.1)
+    addMsg("debug","HTTP","Fn: "..httpName,0,nil,false)
+    if not httpFn and not useHttpSvc then sysMsg("debug", T("sys_diag_nohttp")); return end
+    sysMsg("debug", T("sys_diag_test"))
     local res=doRequest({Url=FIREBASE_URL.."/ping.json",Method="GET"})
-    if not res then sysMsg("debug","❌ Sem resposta do Firebase!"); return end
+    if not res then sysMsg("debug", T("sys_diag_nofire")); return end
     local code2=tostring(res.StatusCode or "?"); local body2=tostring(res.Body or "")
     if body2:find("Permission denied") or code2=="401" then
-        sysMsg("debug","❌ Firebase bloqueado! Vá em Regras → read/write: true"); return
+        sysMsg("debug", T("sys_diag_block")); return
     end
-    if code2=="200" or res.Success then sysMsg("debug","✅ Firebase OK!")
+    if code2=="200" or res.Success then sysMsg("debug", T("sys_diag_ok"))
     else sysMsg("debug","⚠️ HTTP "..code2.." | "..body2:sub(1,50)) end
 end
+
 task.defer(function()
     task.wait(0.5)
-    sysMsg("debug","Executor: "..httpName); sysMsg("debug","Pressione o botão para testar.")
+    sysMsg("debug", T("sys_executor")..httpName)
+    sysMsg("debug", T("sys_debug_sub"))
     local p=panels["debug"]; if not p then return end
     local db=Instance.new("TextButton",p.frame)
-    db.Text="🔍 Testar Conexão"; db.Size=UDim2.new(1,-8,0,40); db.Position=UDim2.new(0,4,1,-45)
+    db.Text=T("btn_test_conn"); db.Size=UDim2.new(1,-8,0,40); db.Position=UDim2.new(0,4,1,-45)
     db.BackgroundColor3=Color3.fromRGB(30,115,50); db.TextColor3=Color3.new(1,1,1)
     db.TextSize=mob and 13 or 12; db.Font=Enum.Font.GothamBold; db.BorderSizePixel=0; db.AutoButtonColor=false
     Instance.new("UICorner",db).CornerRadius=UDim.new(0,10)
+    onLangChange(function() if db and db.Parent then db.Text = T("btn_test_conn") end end)
     db.MouseButton1Click:Connect(function()
-        db.Text="Testando..."; db.BackgroundColor3=Color3.fromRGB(18,78,35)
-        task.spawn(function() runDiag(); task.wait(2.5); db.Text="🔍 Testar Conexão"; db.BackgroundColor3=Color3.fromRGB(30,115,50) end)
+        db.Text=T("btn_testing"); db.BackgroundColor3=Color3.fromRGB(18,78,35)
+        task.spawn(function()
+            runDiag()
+            task.wait(2.5)
+            db.Text=T("btn_test_conn"); db.BackgroundColor3=Color3.fromRGB(30,115,50)
+        end)
     end)
 end)
 
@@ -1011,6 +1268,7 @@ end
 -- MINIMIZAR / FECHAR
 -- ══════════════════════════════════════════════════════════
 local savedPos=Main.Position
+
 MinBtn.MouseButton1Click:Connect(function()
     minimized=not minimized
     if minimized then
@@ -1023,11 +1281,11 @@ MinBtn.MouseButton1Click:Connect(function()
         end)
     else
         Bubble.Visible=false; Main.Visible=true; Main.Position=savedPos; Main.Size=UDim2.new(0,0,0,0)
-        MinBtn.Text="−"
         Tween:Create(Main,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Size=UDim2.new(0,WIN_W,0,WIN_H)}):Play()
     end
     MinBtn.Text=minimized and "□" or "−"
 end)
+
 CloseBtn.MouseButton1Click:Connect(function()
     task.spawn(function() fbDel("/presence/"..myKey..".json") end)
     Tween:Create(Main,TweenInfo.new(0.22,Enum.EasingStyle.Back,Enum.EasingDirection.In),{Size=UDim2.new(0,0,0,0)}):Play()
@@ -1035,7 +1293,7 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ══════════════════════════════════════════════════════════
--- AGE GATE (com botões de faixa etária)
+-- AGE GATE
 -- ══════════════════════════════════════════════════════════
 local function openMainChat()
     Main.Visible=true; Main.Size=UDim2.new(0,0,0,0)
@@ -1066,79 +1324,103 @@ do
         Tween:Create(card,TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Size=UDim2.new(0,CARD_W,0,CARD_H)}):Play()
     end)
 
+    -- Seletor de idioma no age gate (canto superior direito do card)
+    -- (aparece depois que o card abre)
+    task.delay(0.6, function()
+        if not card.Parent then return end
+        local langBtnAG=Instance.new("TextButton",card)
+        langBtnAG.Size=UDim2.new(0,56,0,26); langBtnAG.Position=UDim2.new(1,-62,0,8)
+        langBtnAG.BackgroundColor3=Color3.fromRGB(30,20,70); langBtnAG.TextColor3=Color3.fromRGB(200,190,255)
+        langBtnAG.Text=LANG_LABELS[CURRENT_LANG]; langBtnAG.TextSize=10; langBtnAG.Font=Enum.Font.GothamBold
+        langBtnAG.BorderSizePixel=0; langBtnAG.AutoButtonColor=false; langBtnAG.ZIndex=56
+        Instance.new("UICorner",langBtnAG).CornerRadius=UDim.new(0,7)
+        langBtnAG.MouseButton1Click:Connect(function()
+            local idx=1
+            for i,v in ipairs(LANG_CYCLE) do if v==CURRENT_LANG then idx=i; break end end
+            idx=(idx % #LANG_CYCLE)+1
+            CURRENT_LANG=LANG_CYCLE[idx]
+            langBtnAG.Text=LANG_LABELS[CURRENT_LANG]
+            applyLang()
+        end)
+        onLangChange(function()
+            if langBtnAG and langBtnAG.Parent then langBtnAG.Text=LANG_LABELS[CURRENT_LANG] end
+        end)
+    end)
+
     local ico=Instance.new("TextLabel",card); ico.Size=UDim2.new(1,0,0,mob and 52 or 46)
     ico.Position=UDim2.new(0,0,0,mob and 18 or 14); ico.BackgroundTransparency=1
     ico.Text="🔞"; ico.TextSize=mob and 36 or 30; ico.Font=Enum.Font.GothamBold; ico.ZIndex=52
 
     local ttl=Instance.new("TextLabel",card); ttl.Size=UDim2.new(1,-24,0,mob and 28 or 24)
     ttl.Position=UDim2.new(0,12,0,mob and 68 or 58); ttl.BackgroundTransparency=1
-    ttl.Text="Qual é a sua idade?"; ttl.TextColor3=Color3.fromRGB(228,218,255)
+    ttl.Text=T("age_question"); ttl.TextColor3=Color3.fromRGB(228,218,255)
     ttl.TextSize=mob and 18 or 16; ttl.Font=Enum.Font.GothamBold; ttl.ZIndex=52
+    onLangChange(function() if ttl and ttl.Parent then ttl.Text=T("age_question") end end)
 
     local sub=Instance.new("TextLabel",card); sub.Size=UDim2.new(1,-28,0,0); sub.AutomaticSize=Enum.AutomaticSize.Y
     sub.Position=UDim2.new(0,14,0,mob and 100 or 88); sub.BackgroundTransparency=1
-    sub.Text="ℹ️  Isso não afetará seu chat.\nVocê poderá conversar com quem quiser."
-    sub.TextColor3=Color3.fromRGB(120,108,185); sub.TextSize=mob and 12 or 11; sub.Font=Enum.Font.Gotham
+    sub.Text=T("age_sub"); sub.TextColor3=Color3.fromRGB(120,108,185)
+    sub.TextSize=mob and 12 or 11; sub.Font=Enum.Font.Gotham
     sub.TextWrapped=true; sub.TextXAlignment=Enum.TextXAlignment.Center; sub.ZIndex=52
+    onLangChange(function() if sub and sub.Parent then sub.Text=T("age_sub") end end)
 
-    -- Input de idade numérica
-    local inputF = Instance.new("Frame", card)
-    inputF.Size = UDim2.new(0, CARD_W-32, 0, mob and 46 or 42)
-    inputF.Position = UDim2.new(0, 16, 0, mob and 158 or 142)
-    inputF.BackgroundColor3 = Color3.fromRGB(18,14,42); inputF.BorderSizePixel = 0; inputF.ZIndex = 53
-    Instance.new("UICorner", inputF).CornerRadius = UDim.new(0, 10)
-    local iSt2 = Instance.new("UIStroke", inputF); iSt2.Color = Color3.fromRGB(88,52,205); iSt2.Thickness = 1.5
+    local inputF=Instance.new("Frame",card)
+    inputF.Size=UDim2.new(0,CARD_W-32,0,mob and 46 or 42)
+    inputF.Position=UDim2.new(0,16,0,mob and 158 or 142)
+    inputF.BackgroundColor3=Color3.fromRGB(18,14,42); inputF.BorderSizePixel=0; inputF.ZIndex=53
+    Instance.new("UICorner",inputF).CornerRadius=UDim.new(0,10)
+    local iSt2=Instance.new("UIStroke",inputF); iSt2.Color=Color3.fromRGB(88,52,205); iSt2.Thickness=1.5
 
-    local ageBox = Instance.new("TextBox", inputF)
-    ageBox.PlaceholderText = "Digite sua idade (ex: 16)"
-    ageBox.Text = ""; ageBox.Size = UDim2.new(1, -(mob and 58 or 52), 1, 0)
-    ageBox.Position = UDim2.new(0, 12, 0, 0)
-    ageBox.BackgroundTransparency = 1; ageBox.TextColor3 = Color3.fromRGB(225,215,255)
-    ageBox.PlaceholderColor3 = Color3.fromRGB(90,78,148)
-    ageBox.TextSize = mob and 17 or 15; ageBox.Font = Enum.Font.GothamBold
-    ageBox.TextXAlignment = Enum.TextXAlignment.Left; ageBox.ClearTextOnFocus = false
-    ageBox.ZIndex = 54
-    ageBox.TextEditable = true
+    local ageBox=Instance.new("TextBox",inputF)
+    ageBox.PlaceholderText=T("age_placeholder"); ageBox.Text=""
+    ageBox.Size=UDim2.new(1,-(mob and 58 or 52),1,0); ageBox.Position=UDim2.new(0,12,0,0)
+    ageBox.BackgroundTransparency=1; ageBox.TextColor3=Color3.fromRGB(225,215,255)
+    ageBox.PlaceholderColor3=Color3.fromRGB(90,78,148)
+    ageBox.TextSize=mob and 17 or 15; ageBox.Font=Enum.Font.GothamBold
+    ageBox.TextXAlignment=Enum.TextXAlignment.Left; ageBox.ClearTextOnFocus=false
+    ageBox.ZIndex=54; ageBox.TextEditable=true
+    onLangChange(function() if ageBox and ageBox.Parent then ageBox.PlaceholderText=T("age_placeholder") end end)
 
-    local confirmBtn = Instance.new("TextButton", inputF)
-    confirmBtn.Text = "OK"; confirmBtn.Size = UDim2.new(0, mob and 48 or 42, 0, (mob and 46 or 42)-10)
-    confirmBtn.Position = UDim2.new(1, -(mob and 54 or 48), 0.5, -((mob and 46 or 42)-10)/2)
-    confirmBtn.BackgroundColor3 = Color3.fromRGB(85,50,205); confirmBtn.TextColor3 = Color3.new(1,1,1)
-    confirmBtn.TextSize = mob and 14 or 13; confirmBtn.Font = Enum.Font.GothamBold
-    confirmBtn.BorderSizePixel = 0; confirmBtn.AutoButtonColor = false; confirmBtn.ZIndex = 54
-    Instance.new("UICorner", confirmBtn).CornerRadius = UDim.new(0, 8)
+    local confirmBtn=Instance.new("TextButton",inputF)
+    confirmBtn.Text=T("age_ok")
+    confirmBtn.Size=UDim2.new(0,mob and 48 or 42,0,(mob and 46 or 42)-10)
+    confirmBtn.Position=UDim2.new(1,-(mob and 54 or 48),0.5,-((mob and 46 or 42)-10)/2)
+    confirmBtn.BackgroundColor3=Color3.fromRGB(85,50,205); confirmBtn.TextColor3=Color3.new(1,1,1)
+    confirmBtn.TextSize=mob and 14 or 13; confirmBtn.Font=Enum.Font.GothamBold
+    confirmBtn.BorderSizePixel=0; confirmBtn.AutoButtonColor=false; confirmBtn.ZIndex=54
+    Instance.new("UICorner",confirmBtn).CornerRadius=UDim.new(0,8)
+    onLangChange(function() if confirmBtn and confirmBtn.Parent then confirmBtn.Text=T("age_ok") end end)
 
-    local errLbl = Instance.new("TextLabel", card)
-    errLbl.Size = UDim2.new(0, CARD_W-32, 0, 20); errLbl.Position = UDim2.new(0, 16, 0, mob and 208 or 190)
-    errLbl.BackgroundTransparency = 1; errLbl.TextColor3 = Color3.fromRGB(255,100,100)
-    errLbl.TextSize = mob and 12 or 11; errLbl.Font = Enum.Font.Gotham
-    errLbl.TextXAlignment = Enum.TextXAlignment.Center; errLbl.Name = "ErrLbl"; errLbl.Text = ""; errLbl.ZIndex = 53
+    local errLbl=Instance.new("TextLabel",card)
+    errLbl.Size=UDim2.new(0,CARD_W-32,0,20); errLbl.Position=UDim2.new(0,16,0,mob and 208 or 190)
+    errLbl.BackgroundTransparency=1; errLbl.TextColor3=Color3.fromRGB(255,100,100)
+    errLbl.TextSize=mob and 12 or 11; errLbl.Font=Enum.Font.Gotham
+    errLbl.TextXAlignment=Enum.TextXAlignment.Center; errLbl.Name="ErrLbl"; errLbl.Text=""; errLbl.ZIndex=53
 
     local function confirm()
-        local v = tonumber(ageBox.Text)
-        if not v or v < 1 or v > 120 then
-            errLbl.Text = "Digite um numero valido (ex: 16)"
-            Tween:Create(inputF, TweenInfo.new(0.05), {Position=UDim2.new(0,20,0,mob and 158 or 142)}):Play()
+        local v=tonumber(ageBox.Text)
+        if not v or v<1 or v>120 then
+            errLbl.Text=T("age_error")
+            Tween:Create(inputF,TweenInfo.new(0.05),{Position=UDim2.new(0,20,0,mob and 158 or 142)}):Play()
             task.wait(0.05)
-            Tween:Create(inputF, TweenInfo.new(0.05), {Position=UDim2.new(0,12,0,mob and 158 or 142)}):Play()
+            Tween:Create(inputF,TweenInfo.new(0.05),{Position=UDim2.new(0,12,0,mob and 158 or 142)}):Play()
             task.wait(0.05)
-            Tween:Create(inputF, TweenInfo.new(0.05), {Position=UDim2.new(0,16,0,mob and 158 or 142)}):Play()
+            Tween:Create(inputF,TweenInfo.new(0.05),{Position=UDim2.new(0,16,0,mob and 158 or 142)}):Play()
             return
         end
-        -- determina grupo
-        MY_AGE_NUM = v
-        if v < 13 then MY_AGE_GROUP = "child"
-        elseif v < 18 then MY_AGE_GROUP = "teen"
-        else MY_AGE_GROUP = "adult" end
+        MY_AGE_NUM=v
+        if v<13 then MY_AGE_GROUP="child"
+        elseif v<18 then MY_AGE_GROUP="teen"
+        else MY_AGE_GROUP="adult" end
 
         Tween:Create(card,TweenInfo.new(0.28,Enum.EasingStyle.Quart,Enum.EasingDirection.In),{Size=UDim2.new(0,0,0,0)}):Play()
         Tween:Create(overlay,TweenInfo.new(0.28),{BackgroundTransparency=1}):Play()
-        task.delay(0.32, function() card:Destroy(); overlay:Destroy(); openMainChat() end)
+        task.delay(0.32,function() card:Destroy(); overlay:Destroy(); openMainChat() end)
     end
 
     confirmBtn.MouseButton1Click:Connect(confirm)
     ageBox.FocusLost:Connect(function(enter) if enter then confirm() end end)
-    task.delay(0.5, function() pcall(function() ageBox:CaptureFocus() end) end)
+    task.delay(0.5,function() pcall(function() ageBox:CaptureFocus() end) end)
 end
 
-print("[GlobalChatHub v4] ✅ | "..MYNAME.." | HTTP: "..httpName)
+print("[GlobalChatHub v4.1] ✅ | "..MYNAME.." | HTTP: "..httpName)
